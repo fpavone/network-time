@@ -1,0 +1,756 @@
+---
+title: "Meeting KAUST"
+author: "Federico Pavone"
+date: today
+toc: true
+format: html
+server: shiny
+---
+
+# About Euclidean graphs {#euclidean-graphs}
+
+The definition of Euclidean graphs given by Anderes et al. (2020) is the following:
+
+![](images/Screenshot%202023-10-01%20at%2012.19.13.png){fig-align="center" width="544"}
+
+![](images/Screenshot%202023-10-01%20at%2012.19.17.png){fig-align="center" width="540" height="91"}
+
+The only condition is given by point c), the *distance consistency*. This condition resembles a triangular inequality (for this reason Euclidean?). It seems that a necessary (and maybe sufficient) condition to satisfy this property is the following: "*if two vertices are connected by an edge, this must be the shortest path (under any chosen metric)*".
+
+Therefore, it looks like we can transform a non-Euclidean graph by breaking any edge connecting two nodes, which does not represented the shortest path between the two, adding a new node and dividing the edge in two "sub"-edges.
+
+For instance, in the cycle example the distance consistency implies that:
+
+$$
+\overline{e}_0 - \underline{e}_0 \leq \sum_{\mathcal{E}\ni e\neq e_0} (\overline{e}-\underline{e}),
+$$
+
+which means that any edge cannot span more than half of the circumference. But if any edge violates this requirement, one can just break down the edge by adding a new node and having the condition satisfied.
+
+1.  Is there any fallacy in this reasoning?
+2.  If not, what then is the "true" meaning (and the effect) of having a 2-degree node in the network? We can add and remove them, and obtain Euclidean and non-Euclidean graphs.
+
+![Image from Anderes et al. (2020)](images/Screenshot%202023-10-01%20at%2017.02.38.png){fig-align="center" width="542"}
+
+![Image from Porcu et al. (2023)](images/Screenshot%202023-10-01%20at%2016.55.37.png){fig-align="center" width="533"}
+
+# Sensitivity analysis {#sensitivity}
+
+We can perhaps reason about two directions of sensitivity analysis: *model-related sensitivity* or *signal-related sensitivity*.
+
+We can refer to *model-related sensitivity* as the one regarding the robustness of a given model. For instance: parameter estimates, prediction accuracy, uncertainty calibration, etc..
+
+Meanwhile, we can refer to *signal-related sensitivity* as the robustness of empirical-based estimates regarding functions defined on graphs, such as empirical variogram in spatial contexts.
+
+Possibly for both types of sensitivities, we can consider two perturbation scenarios:
+
+1.  Perturbation of the observed values in some point, given the network. Ideally, we would like to see and learn patterns for the robustness of the model estimates against some topological features of the network
+2.  Perturbation of the network, given the observed values. It is perhaps meaningful if we observe the process only on the verteces and, e.g., we consider removing or adding edges.
+
+For the simulations we rely on the `R`-package `MetricGraph`. The package allows us to manipulate networks, simulate data, and estimate some models. In particular, all simulated data comes from the Whittle-Matern process.
+
+## Model-related sensitivity {#model-sensitivity}
+
+At this stage, the general experiment is given by the following procedure:
+
+1.  Define a (Euclidean) metric graph.
+2.  Simulate data from the WM model, fixing the hyperparameters. We can consider different data locations (we always include the network verteces).
+3.  Consider different level h of perturbations of the data at the verteces.
+4.  Fit the `WM` model and the `isoCov` model, and look at the parameter estimates.
+
+[TODO]{style="background-color: #FFFF00"} In general, we can simulate the data also from the `isoCov` process by defining the locations, computing the pairwise resistance distances, and sample the associated multivariate Gaussian. This sounds more reasonable as in this way we can fairly compare the estimates to the true parameter values for both processes.
+
+### The Whittle-Matern field model (Bolin et al., 2023)
+
+The `WM` model is defined through a SPDE on the graph (with proper notions of differential operators and boundary conditions on the graph): $$
+(\kappa^2 - \Delta)^{\alpha/2}\tau u = W,
+$$ where $W$ is the white noise process. Parameter $\tau^2$ is related to the inverse of the variance, $\kappa$ is related to the length-scale of the model, and $\alpha$ to the smoothness. The above equation relates to the classical Matern covariance as follows: $$
+r(d)=\frac{\Gamma(\nu)}{\tau^2\Gamma(\nu+1/2)\sqrt{4\pi}\kappa^{2\nu}}(\kappa d)^\nu \mathcal{K}_\nu(\kappa d),
+$$ considering $\alpha = \nu + 1/2$. The `R` package has two different parametrizations: $(\nu,\sigma,\rho)$ and $(\alpha,\tau,\kappa)$, where $\rho$ is named *range* and it is the practical correlation range (i.e, correlation less than 0.1 for $d>\rho$). The relation between the two parametrizations is the following:
+
+$$
+\begin{cases}
+\alpha = \nu + 1/2 \\
+\rho = \sqrt{8\nu}/\kappa \\
+\sigma^2 = \frac{\Gamma(\nu)}{\tau^2\Gamma(\nu+1/2)\sqrt{4\pi}\kappa^{2\nu}}
+\end{cases}
+$$
+
+### The isotropic (exponential) covariance model (Anderes et al, 2020)
+
+The covariance function is the following: $$
+r(d_R) = \tau^2 \text{exp}(- \kappa d_R),
+$$ where $d_R$ is the *resistance metric* on the graph. The `MetricGraph` parameterization is given by $(\tau,\kappa)$, where this time $\tau^2$ is proportional to the marginal variance, rather than the precision (confusing notation).
+
+### Simulations
+
+We consider the following examples of networks. Networks `Complete (all 1)`, `Star`, and `Random (all1)` have all edges of unitary length (also in order to guarantee distance consistency)
+
+![Networks](images/graphs.jpg){fig-align="center" width="854"}
+
+The data locations are one for each vertex, plus a number of point proportional to length of the edge (roughly 10 observations for each unit of length).
+
+We simulate data from the `WM` process with $\alpha = 1$, $\tau = 1$, $\kappa = 1$. We do `nsim=20` simulations, with fixed locations, and compute the **median estimates** across simulations for the $\tau$ and $\kappa$ parameters for both `WM` and `isoCov` models. When fitting `WM`, we fix $\alpha$ to the true value of 1.
+
+![Fixed locations](images/isocov_wm1.jpg){fig-align="center"}
+
+Due to the unexpected asymmetry in the complete network, we consider another set of simulations where at each step we resample also the locations.
+
+![Averaged locations](images/isocov_wm1_avgloc.jpg)
+
+## Signal-based sensitivity
+
+Here we investigate the sensitivity of sample-based estimates of some quantities of interest. An example borrowed from spatial statistics is the variogram $$
+2\gamma(h) = \frac{1}{\mid N_h \mid} \sum_{(i,j)\in N_h} (Z_i - Z_h)^2.
+$$ As showed in Genton and Ruiz-Gazen (2010), this quantity can be written as a quadratic form $Z^\intercal A Z$ of the data values $Z=(Z_1,\dots,Z_N)^\intercal$, for a certain symmetric matrix $A$. It follows that we have analytical expressions for the local and asymptotic influences (Genton and RUiz-Gazen, 2010): $$
+\tau_i(\hat{\theta},Z) = 2a_i^\intercal Z,
+$$ where $a_i$ is the vector given by the i-th row of $A$.
+
+In the context of networks, a quantity of interest is the *graph Laplacian*. There are multiple definitions of graph Laplacian, but the basic one for an undirected graph is given by a $n\times n$ matrix $L$ with entries $$
+L_{ij} = \begin{cases}
+d_i  & \text{if} \quad i=j \\
+-1  & \text{if} \quad (i,j)\in E \\
+0 & \text{otherwise}
+\end{cases},
+$$ where $d_i$ is the degree of the node (number of edges associated to that node). In case of a weigthed graph with weight $w_{ij}$ for the edge $(i,j)\in E$, one generalization is given by: $$
+L_{ij} = \begin{cases}
+w_i & \text{if} \quad i=j \\
+-w_{ij} & \text{if} \quad (i,j)\in E \\
+0 & \text{otherwise}
+\end{cases},
+$$ where $w_i$ is the sum of the weights of the edges connected to node $i$.
+
+Considering a vertex-valued function $Z:V\rightarrow \mathbb{R}$, there exists a measure of the weighted-smoothness given by the *graph Laplacian quandratic form*:
+
+$$
+S_2(Z) := \sum_{(i,j)\in E} w_{ij}(Z_j - Z_i)^2 = Z^\intercal L Z.
+$$ 
+This resembles to some extent the variogram definition. Note that here the squared difference are computed between all connected vertices rather than at a fixed lag $h$. Moreover, the larger the weight, the more important is the difference. Therefore, in our context we may want to choose: 
+$$
+w_{ij} = 1/d_{\cdot \mathcal{G}}(i,j), \qquad \forall (i,j)\in E,
+$$ 
+with either the geodesic or resistance distance.
+
+The advantage of $S_2(Z)$ is that it is a quadratic form, and thus we can leverage Genton and Ruiz-Gazen (2010) and directly compute the local influence for each vertex: $$
+\tau_i(S_2,Z) = 2l_i^\intercal Z,
+$$ with $l_i$ the i-th row of the graph Laplacian $L$.
+
+[TODO]{style="background-color: #FFFF00"} We can consider extension of this idea to all observations on graph (maybe not trivial), and other version of the Laplacian (normalized, etc..).
+
+### Simulations
+
+We do the following experiment:
+
+1.  We sample a network with a given node distribution.
+2.  We simulate on the vertexes from `WM` with $\alpha=\kappa=\tau=1$.
+3.  We compute the local influence of each node for a total of `nsim=100` simulations.
+
+In particular, we sample a network with a power-law distribution for the node degree. That is, the degree distribution is $\propto 1/x^a$. We set $a=1$. We normalize all the edge lengths to be equal to 1, in order to isolate the effect of the node degree on the result.
+
+![Simulated network with power-law degree distribution](images/graph_power1.png){fig-align="center" width="329"}
+
+![Boxplot of the node local influences on $S_2(Z)$](images/locinf.jpg)
+
+[TODO]{style="background-color: #FFFF00"} Consider different topologies and include branch lengths.
+
+## Definitions
+
+1.  Vertex closeness $$
+    c(v) = \frac{1}{\sum_{u\in V}d(u,v)}
+    $$
+2.  Vertex betweenness $$
+    b(v) = \sum_{s\neq t \neq v \in V}\frac{\sigma(s,t\mid v)}{\sigma(s,t)},
+    $$ where $\sigma(s,t)$ is the total number of shortest paths from $s$ to $t$, and $\sigma(s,t\mid v)$ is the number of those passing through $v$.
+
+
+# What is new
+We are working on two fronts: model-based and sample-based sensitivity.
+
+```{r}
+#| context: setup
+#| include: false
+library(here)
+library(shiny)
+library(tidyverse)
+library(visNetwork)
+library(scales)
+library(igraph)
+theme_set(
+  theme_light() +
+    theme(
+      strip.background = element_rect(color = 'gray', fill = 'white'),
+      strip.text.x = element_text(color = 'black'),
+      strip.text.y = element_text(color = 'black')
+    )
+)
+source(here('sensitivity','helper_fun.R'))
+
+net_degree_options <- c('constant',
+                        'exp',
+                        'power 0.5',
+                        'power 1',
+                        'power 2')
+
+res_data <- asym_data <- tibble()
+meta_data2 <- tibble()
+g_exp_list <- graph_exp_list <- NULL
+for(net in net_degree_options){
+  load(here('sensitivity','shiny',
+            paste('sample_sensitivity_', 
+                  str_replace_all(net, pattern = " ", repl = ""), 
+                  '.Rdata', sep = '')))
+  res_data <- res_data %>%
+    bind_rows(data_plot %>%
+                mutate(network = net))
+  asym_data <- asym_data %>%
+    bind_rows(data_asymptotic %>%
+                mutate(network = net))
+  meta_data2 <- meta_data2 %>%
+    bind_rows(meta_data %>%
+                mutate(network = net))
+  
+  g_exp_list <- c(g_exp_list, list(g_exp))
+  graph_exp_list <- c(graph_exp_list, list(graph_exp))
+}
+names(g_exp_list) <- names(graph_exp_list) <- net_degree_options
+
+meta_data2 <- meta_data2 %>%
+  mutate(degbet = rank(Degree)*rank(Betweenness),
+         .by = "network")
+
+res_data <- full_join(res_data, meta_data2, by = c("node","network"))
+asym_data <- asym_data %>%
+  mutate_at(vars(node), as.character) %>%
+  full_join(meta_data2, by = c("node","network"))
+
+
+## Isocov
+res_data_isocov <- asym_data_isocov <- tibble()
+meta_data2_isocov <- tibble()
+loc_inf_teo_isocov <- tibble()
+g_exp_list_isocov <- graph_exp_list_isocov <- NULL
+for(net in net_degree_options){
+  load(here('sensitivity','shiny',
+            paste('sample_sensitivity_ISOCOV_',
+                  str_replace_all(net, pattern = " ", repl = ""),
+                  '.Rdata', sep = '')))
+  res_data_isocov <- res_data_isocov %>%
+    bind_rows(data_plot %>%
+                mutate(network = net))
+  asym_data_isocov <- asym_data_isocov %>%
+    bind_rows(data_asymptotic %>%
+                mutate(network = net))
+  meta_data2_isocov <- meta_data2_isocov %>%
+    bind_rows(meta_data %>%
+                mutate(network = net))
+  loc_inf_teo_isocov <- loc_inf_teo_isocov %>%
+    bind_rows(data_plot_teo %>%
+                mutate(network = net))
+
+  g_exp_list_isocov <- c(g_exp_list_isocov, list(g_exp))
+  graph_exp_list_isocov <- c(graph_exp_list_isocov, list(graph_exp))
+}
+names(g_exp_list_isocov) <- names(graph_exp_list_isocov) <- net_degree_options
+
+meta_data2_isocov <- meta_data2_isocov %>%
+  mutate(degbet = rank(Degree)*rank(Betweenness),
+         .by = "network")
+
+res_data_isocov <- full_join(res_data_isocov, meta_data2_isocov, by = c("node","network"))
+asym_data_isocov <- asym_data_isocov %>%
+  mutate_at(vars(node), as.character) %>%
+  full_join(meta_data2, by = c("node","network"))
+loc_inf_teo_isocov <- full_join(loc_inf_teo_isocov, meta_data2_isocov, by = c("node","network"))
+
+
+### MODEL-BASED SENSITIVITY, AVERAGED LOCATION
+load(here('sensitivity','sensitivity_obsperunit_avgloc_061023.Rdata'))
+
+net_powerlaw_all1 <- graph_from_data_frame(d = tibble(source = powerlaw_graph_all1$E[,1],
+                                                      target = powerlaw_graph_all1$E[,2],
+                                                      weight = powerlaw_graph_all1$edge_lengths),
+                                           vertices = 1:nrow(powerlaw_graph_all1$V),
+                                           directed = FALSE)
+powerlaw_all1_meta <- tibble(node = 1:tot_nodes,
+                             closeness = closeness(net_powerlaw_all1),
+                             betweenness = betweenness(net_powerlaw_all1),
+                             degree = degree(net_powerlaw_all1))
+
+results %>%
+  map_dfr(.f = as_tibble,
+          .id = 'graph') %>%
+  pivot_longer(-c('graph','node','iter','h')) %>%
+  mutate(model = str_extract(name,'^[:alpha:]*[:digit:]?'),
+         parameter = str_extract(name,'[:alpha:]*$')) %>%
+  select(-name) -> res_avgloc_data
+
+scale_score <- function(x, ...)
+{
+  res <- (x - median(x))/diff(range(x))
+  print(...)
+  return(res)
+}
+
+scale_score <- \(x)((x - median(x))/diff(range(x)))
+
+comp_meta %>%
+  mutate(graph = "Complete_all1",
+         Harmonic = harmonic_centrality(net_comp_all1),
+         Authority = authority_score(net_comp_all1)$vector,
+         PageRank = page_rank(net_comp_all1, directed = FALSE)$vector,
+         Triangles = sapply(1:n_nodes, FUN = count_triangles, graph = net_comp_all1),
+         Eigen_centrality = eigen_centrality(net_comp_all1, directed = FALSE)$vector,
+         Subgraph_centrality = subgraph_centrality(net_comp_all1, diag = FALSE)) %>%
+  bind_rows(star_meta %>%
+              mutate(graph = "Star",
+                     Harmonic = harmonic_centrality(net_star),
+                     Authority = authority_score(net_star)$vector,
+                     PageRank = page_rank(net_star, directed = FALSE)$vector,
+                     Triangles = sapply(1:n_nodes, FUN = count_triangles, graph = net_star),
+                     Eigen_centrality = eigen_centrality(net_star, directed = FALSE)$vector,
+                     Subgraph_centrality = subgraph_centrality(net_star, diag = FALSE))) %>%
+  bind_rows(rand_all1_meta %>%
+              mutate(graph = "Random_all1",
+                     Harmonic = harmonic_centrality(net_rand_all1),
+                     Authority = authority_score(net_rand_all1)$vector,
+                     PageRank = page_rank(net_rand_all1, directed = FALSE)$vector,
+                     Triangles = sapply(1:n_nodes, FUN = count_triangles, graph = net_rand_all1),
+                     Eigen_centrality = eigen_centrality(net_rand_all1, directed = FALSE)$vector,
+                     Subgraph_centrality = subgraph_centrality(net_rand_all1, diag = FALSE))) %>%
+  bind_rows(powerlaw_all1_meta %>%
+              mutate(graph = "Powerlaw_all1",
+                     Harmonic = harmonic_centrality(net_powerlaw_all1),
+                     Authority = authority_score(net_powerlaw_all1)$vector,
+                     PageRank = page_rank(net_powerlaw_all1, directed = FALSE)$vector,
+                     Triangles = sapply(1:n_nodes, FUN = count_triangles, graph = net_powerlaw_all1),
+                     Eigen_centrality = eigen_centrality(net_powerlaw_all1, directed = FALSE)$vector,
+                     Subgraph_centrality = subgraph_centrality(net_powerlaw_all1, diag = FALSE))) -> net_avgloc_meta
+
+net_avgloc_meta %>%
+  group_by(graph) %>%
+  mutate_at(vars(!any_of(c("node","graph","closeness_trasf"))), 
+            scale_score) %>%
+  mutate_at(vars(!any_of(c("node","graph","closeness_trasf"))), 
+            \(x)(replace_na(x,0)))-> net_avgloc_meta_scaled
+
+n_nodes <- 50
+```
+
+## Model-based sensitivity
+```{r}
+#| panel: fill
+selectInput(inputId = "color",
+            label = "Coloring attribute",
+            choices = names(select(net_avgloc_meta, -c('node','graph'))),
+            selected = 'Degree')
+
+selectInput(inputId = "model",
+            label = "Model (used for fitting)",
+            choices = c('isoCov','WM'),
+            selected = 'isoCov')
+
+checkboxInput(inputId = "scale",
+              label = "Scaling attribute",
+              value = TRUE)
+
+
+```
+```{r}
+fluidRow(
+plotOutput(outputId = "sensitivity_avgloc",
+           width = "100%",
+           height = "300px")
+)
+```
+```{r}
+#| context: server
+output$sensitivity_avgloc <- renderPlot({
+  if(input$scale){
+    res_avgloc_data %>%
+      filter(model == input$model) %>%
+      group_by(graph, node, h, model, parameter) %>%
+      summarise(value = median(value)) %>%
+      full_join(net_avgloc_meta_scaled , by = c('node', 'graph')) %>%
+      ggplot(aes(x = h, y = value, group = node)) +
+      geom_line(aes(color = !!sym(input$color)), alpha = 0.6) +
+      scale_color_viridis_c() +
+      facet_grid(rows = vars(parameter),
+                 cols = vars(graph),
+                 scale = 'free') -> plot_avgloc
+  } else {
+    res_avgloc_data %>%
+      filter(model == input$model) %>%
+      group_by(graph, node, h, model, parameter) %>%
+      summarise(value = median(value)) %>%
+      full_join(net_avgloc_meta, by = c('node', 'graph')) %>%
+      ggplot(aes(x = h, y = value, group = node)) +
+      geom_line(aes(color = !!sym(input$color)), alpha = 0.6) +
+      scale_color_viridis_c() +
+      facet_grid(rows = vars(parameter),
+                 cols = vars(graph),
+                 scale = 'free') -> plot_avgloc
+  }
+  plot_avgloc
+})
+```
+
+## Sample-based sensitivity
+
+We consider different quadratic forms or ratio of quadratic forms:
+
+-   Graph Laplacian quandratic form
+$$
+S_2(Z) := \sum_{(i,j)\in E} w_{ij}(Z_j - Z_i)^2 = Z^\intercal L Z.
+$$ 
+
+-   Moran's I, based on the graph adjacency matrix
+$$
+I = \frac{\sum_{i,j=1}^n w_{ij} (Z_i - \bar{Z})^\intercal(Z_j - \bar{Z})}{\sum_{i=1}^n (Z_i - \bar{Z})^2},
+$$
+where the weights are the entries of the adjacency matrix, i.e. $w_{ij} = a_{ij} = I(e_{ij}\in E)$
+
+
+-   Moran's I, based on the radius-1 ball in resistance distance. In other words, for each node we consider the radius-1 ball and assign weights
+$$
+w^1_{ij} = \begin{cases}
+1/d_R(v_i,v_j) & \text{if} \quad d_R(v_i,v_j)<1 \\
+0 & \text{otherwise}
+\end{cases}
+$$
+Given $w_{ij}$, we consider the classical Moran's I
+$$
+I^1_R = \frac{\sum_{i,j=1}^n w^1_{ij} (Z_i - \bar{Z})^\intercal(Z_j - \bar{Z})}{\sum_{i=1}^n (Z_i - \bar{Z})^2},
+$$
+
+-   Raylegh quotient of the graph Laplacian
+$$
+Q =\frac{Z^\intercal L Z}{Z^\intercal Z}
+$$
+
+We sample a network approximately with the power-law degree distribution, that is:
+$$
+P(\text{node has degree d}) = d^{-\beta}
+$$
+
+```{r}
+#| panel: sidebar
+titlePanel("Visualization")
+textInput(inputId = "seed",
+          label = "Network-node seed",
+          value = 32423)
+selectInput(inputId = "fill",
+            label = "Coloring attribute",
+            choices = names(select(meta_data2, -c('node','network'))),
+            selected = 'Degree')
+selectInput(inputId = "plot",
+            label = "What to plot",
+            choices = c('Local influence', 'Asymptotic influence'),
+            selected = 'Local influence')
+
+titlePanel("Data simulation parameters")
+selectInput(inputId = "net_degree",
+            label = "Network degree distribution",
+            choices = net_degree_options,
+            selected = 'power 1')
+selectInput(inputId = "tau",
+            label = "Tau",
+            choices = tau_seq,
+            selected = 1)
+selectInput(inputId = "kappa",
+            label = "Kappa",
+            choices = kappa_seq,
+            selected = 1)
+selectInput(inputId = "alpha",
+            label = "Alpha",
+            choices = alpha_seq,
+            selected = 1)
+```
+```{r}
+#| panel: fill
+visNetworkOutput("network")
+plotOutput(outputId = "sensitivity",
+           width = "100%",
+           height = "500px")
+```
+```{r}
+#| context: server
+output$network <- renderVisNetwork({
+    selected_fill <- meta_data2 %>%
+      filter(network == input$net_degree) %>%
+      pull(input$fill)
+    selected_graph <- graph_exp_list[[input$net_degree]]
+    
+    color_palette <- col_numeric("viridis", domain = range(selected_fill))
+    nodes <- data.frame(id = 1:n_nodes,
+                        label = as.character(1:n_nodes),
+                        color = color_palette(selected_fill))
+    edges <- data.frame(from = selected_graph$E[,1],
+                        to = selected_graph$E[,2],
+                        color = 'black')
+    visNetwork(nodes, edges) %>%
+      visIgraphLayout(randomSeed = as.numeric(input$seed),
+                      type = "full") %>%
+      visNodes(#shape = "ellipse",
+               font = list(color = 'black',
+                           size = 50,
+                           strokeWidth = 5,
+                           strokeColor = "white"))
+  })
+output$sensitivity <- renderPlot({
+  if(input$plot == 'Local influence'){
+    res_data %>%
+      filter(tau == input$tau,
+             kappa == input$kappa,
+             alpha == input$alpha,
+             network == input$net_degree) %>%
+      ggplot(aes(x = factor(node, levels = 1:n_nodes), 
+                 y = value)) +
+      geom_boxplot(aes(fill = !!sym(input$fill))) +
+      scale_fill_viridis_c() +
+      facet_grid(rows = vars(what), scale = 'free') +
+      labs(x = 'Node') +
+      theme(axis.title.y = element_blank()) -> plot_chosen
+  } else {
+    asym_data %>%
+      filter(network == input$net_degree) %>%
+      ggplot(aes(x = factor(node, levels = 1:n_nodes), 
+                 y = value)) +
+      geom_col(aes(fill = !!sym(input$fill))) +
+      scale_fill_viridis_c() +
+      facet_grid(rows = vars(what), scale = 'free') +
+      labs(x = 'Node') +
+      theme(axis.title.y = element_blank()) -> plot_chosen
+  }
+   plot_chosen 
+  })
+```
+Observations:
+
+-   Some topological node features partially explain the amount of local influence. For instance, the node degree, the betweenness, and the product of the two (degbet)
+-   However, these explanatory power is still partial
+-   The local influence seems to be "independent" of the the specific quadratic form, at least for some of the nodes. However, all the considered quadratic form are related (the matrix $A$ depends on the topology). This is possibly not a restriction, as typically in applications this is the type of quadratic forms of interest.
+
+
+The quantities $I$, $I^1_R$, and $Q$ are ratios of quadratic forms ($\Theta$), whereas $S_2$ is just a quadratic form ($\theta$):
+$$
+\Theta = \frac{Z^\intercal A Z}{Z^\intercal B Z} \qquad \qquad \theta = Z^\intercal A Z.
+$$
+The local influence and the asymptotic influence in both cases are given by
+$$
+\begin{aligned}
+\tau_i &= \frac{2}{Z^\intercal B Z}(a_i - \Theta b_i)^\intercal Z, \\
+\nu_i &= \frac{a_{ii}}{b_{ii}},
+\end{aligned}
+\qquad \qquad
+\begin{aligned}
+\tau_i &= 2a_i^\intercal Z, \\
+\nu_i &= \infty.
+\end{aligned}
+$$
+Let us consider the local influence $\tau_i$. With the previous plots, we consider the distribution of $\tau_i$, across different realization of $Z$. We have:
+
+-   $\Theta = \Theta(Z,A,B)$, deterministic function
+-   $Z = Z\mid A$, as typically $A$ represent some topological information (e.g. adjacency matrix, Laplacian)
+
+In general,
+$$
+\tau_i = \tau_i(Z,A,B)
+$$
+and we are interested in $\mathcal{L}(\tau_i\mid A, B)$.
+Can we try to compute/learn something about this distribution?
+
+Consider also that we notice similar pattern between the local influence for the quadratic form ($S_2$) and the ratios of quadratic forms. Therefore, maybe it is easier to study the distribution of:
+$$
+\tau_i = 2 a_i^\intercal Z.
+$$
+
+## Distributional properties of local influence for quadratic forms
+
+Considering the previous analysis, we are mostly interesting in the marginal variances of the vector $\tau = (\tau_1, \dots, \tau_n)^\intercal$. If we assume that the data come from a certain Gaussian process, we have
+$$
+Z \sim \text{N}(0, \Sigma) \qquad \implies \qquad \tau \sim (0, 4\,A\Sigma A^\intercal).
+$$
+Therefore, the vector of marginal variances is given by
+$$
+\text{var}(\tau) = \text{diag}(4\,A\Sigma A^\intercal) = 4 \,( A\circ(A\Sigma)) 1_n,
+$$
+where the operator $\circ$ represent the Hadamard product, or elementwise product. We can expand the matrix product for the local influence of node $i$,
+$$
+\begin{aligned}
+\text{var}(\tau_i) &= 4 \sum_{j=1}^n \sum_{k=1}^n A_{ij} A_{ik} \Sigma_{jk} \\
+&= 4 \sum_{j=1}^n \sum_{k=1}^n A_{ij} A_{ik} \text{Cov}(Z_j,Z_k).
+\end{aligned}
+$$
+Often, the matrix $A$ that define the quadratic form is the adjacency matrix, or the Laplacian matrix of the graph, which has non-zero entries only for $A_{ij}$ such that $(i,j)\in E$. Therefore, the result of the multiplication between $A_{ij}$ and $A_{ik}$ is non-zero only for the couples $(j,k)\in N_i$, where $N_i$ is the set of the neighbour nodes of $i$. We can rewrite the marginal variance as:
+$$
+\begin{aligned}
+\text{var}(\tau_i) &= 8 \sum_{(i,j)\in N_i} A_{ij} A_{ik} \text{Cov}(Z_j,Z_k).
+\end{aligned}
+$$
+Clearly, the value of $\text{Cov}(Z_j,Z_k)$ depends on the data generating process assumptions. However, in general we can believe this to be decreasing with the distance between $Z_j$ and $Z_k$. 
+
+We  can leverage the above expression to build a model-free sensitivity score for each node, only based on the topological structure of the network. For example (just a first idea):
+$$
+\text{score}(i) = 8 \sum_{(i,j)\in N_i} A_{ij} A_{ik} \, \text{exp}(-d(j,k)),
+$$
+where $d(\cdot,\cdot)$ is a distance on the graph (e.g., geodesic or resistance). However, such a score may be reasonable only under isotropic model assumptions.
+
+### Isotropic model assumption (or data generation)
+
+Under an isotropic Gaussian process model, we can try to derive further calculations. In particular, we consider the `isoCov` model, where the covariance function is given by
+$$
+C(d) = \sigma^2\,\text{exp}(-\kappa d).
+$$
+Let us consider the resistance metric on the graph. If we denote with $\tilde{L}$ the Laplacian matrix considering the graph with weights equal to the inverse of the edge lengths (or distances), we can write the matrix of the pairwise resistance distances as:
+$$
+R = -2L^+ + \text{diag}(\tilde{L}^+)^\intercal\otimes 1_n + 1_n^\intercal\otimes \text{diag}(\tilde{L}^+),
+$$
+where $\tilde{L}^+$ is the pseud-inverse of $\tilde{L}$, and $\otimes$ is the Kronecker product. If we consider the resistance distance between $i$ and $j$, this can be written as:
+$$
+r_{ij} = -2\tilde{L}^+_{ij} + \tilde{L}^+_{ii} + \tilde{L}^+_{jj}.
+$$
+Plugging-in this expression in the formula of the marginal variance of the local influence of a quadratic form, we obtain:
+$$
+\begin{aligned}
+\text{var}(\tau_i) &= 4 \sum_{j=1}^n \sum_{k=1}^n A_{ij} A_{ik} \text{Cov}(Z_j,Z_k) \\
+&= 4 \sum_{j=1}^n \sum_{k=1}^n A_{ij} A_{ik} C(r_{jk}) \\
+&= 4 \sum_{j=1}^n \sum_{k=1}^n A_{ij} A_{ik} \tilde{C}(\tilde{L}^+_{jj})\tilde{C}(\tilde{L}^+_{kk})\tilde{C}(-2\tilde{L}^+_{jk}) \\
+&= 4 \sum_{j=1}^n \sum_{k=1}^n \left[A_{ij}\tilde{C}(\tilde{L}^+_{jj})\right] \, \left[A_{ik}\tilde{C}(\tilde{L}^+_{kk})\right] \,\tilde{C}(-2\tilde{L}^+_{jk})
+\end{aligned},
+$$
+where $\tilde{C}(d) = (\sigma^2)^{1/3}\,\text{exp}(-\kappa d)$, and the above computations follow from considering that $C(\cdot)$ is applied element-wise and it has an exponential form.
+
+```{r}
+#| panel: sidebar
+titlePanel("Visualization")
+textInput(inputId = "seed_isocov",
+          label = "Network-node seed",
+          value = 32423)
+selectInput(inputId = "fill_isocov",
+            label = "Coloring attribute",
+            choices = names(select(meta_data2_isocov, -c('node','network'))),
+            selected = 'Degree')
+selectInput(inputId = "plot_isocov",
+            label = "What to plot",
+            choices = c('Local influence', 'Asymptotic influence'),
+            selected = 'Local influence')
+
+titlePanel("Data simulation parameters")
+selectInput(inputId = "net_degree_isocov",
+            label = "Network degree distribution",
+            choices = net_degree_options,
+            selected = 'power 1')
+selectInput(inputId = "sigma_isocov",
+            label = "Sigma",
+            choices = sigma_seq,
+            selected = 1)
+selectInput(inputId = "kappa_isocov",
+            label = "Kappa",
+            choices = kappa_seq,
+            selected = 1)
+```
+```{r}
+#| panel: fill
+visNetworkOutput("network_isocov")
+plotOutput(outputId = "sensitivity_isocov",
+           width = "100%",
+           height = "500px")
+plotOutput(outputId = "sensitivity_isocov_teo",
+           width = "100%",
+           height = "500px")
+```
+```{r}
+#| context: server
+output$network_isocov <- renderVisNetwork({
+    selected_fill <- meta_data2_isocov %>%
+      filter(network == input$net_degree_isocov) %>%
+      pull(input$fill)
+    selected_graph <- graph_exp_list_isocov[[input$net_degree_isocov]]
+    
+    color_palette <- col_numeric("viridis", domain = range(selected_fill))
+    nodes <- data.frame(id = 1:n_nodes,
+                        label = as.character(1:n_nodes),
+                        color = color_palette(selected_fill))
+    edges <- data.frame(from = selected_graph$E[,1],
+                        to = selected_graph$E[,2],
+                        color = 'black')
+    visNetwork(nodes, edges) %>%
+      visIgraphLayout(randomSeed = as.numeric(input$seed_isocov),
+                      type = "full") %>%
+      visNodes(#shape = "ellipse",
+               font = list(color = 'black',
+                           size = 50,
+                           strokeWidth = 5,
+                           strokeColor = "white"))
+  })
+output$sensitivity_isocov <- renderPlot({
+  if(input$plot == 'Local influence'){
+    res_data_isocov %>%
+      filter(sigma == input$sigma_isocov,
+             kappa == input$kappa_isocov,
+             network == input$net_degree_isocov) %>%
+      ggplot(aes(x = factor(node, levels = 1:n_nodes), 
+                 y = value)) +
+      geom_boxplot(aes(fill = !!sym(input$fill_isocov))) +
+      scale_fill_viridis_c() +
+      facet_grid(rows = vars(what), scale = 'free') +
+      labs(x = 'Node') +
+      theme(axis.title.y = element_blank()) -> plot_chosen
+  } else {
+    asym_data_isocov %>%
+      filter(network == input$net_degree_isocov) %>%
+      ggplot(aes(x = factor(node, levels = 1:n_nodes), 
+                 y = value)) +
+      geom_col(aes(fill = !!sym(input$fill_isocov))) +
+      scale_fill_viridis_c() +
+      facet_grid(rows = vars(what), scale = 'free') +
+      labs(x = 'Node') +
+      theme(axis.title.y = element_blank()) -> plot_chosen
+  }
+   plot_chosen 
+  })
+output$sensitivity_isocov_teo <- renderPlot({
+  res_data_isocov %>%
+    group_by(node, sigma, kappa, what, network) %>%
+    summarize(s2_est = var(value)) %>%
+    full_join(loc_inf_teo_isocov, by = c("node", "sigma", "kappa", "what", "network")) %>%
+    filter(sigma == input$sigma_isocov, 
+           kappa == input$kappa_isocov,
+           network == input$net_degree_isocov) %>%
+    ggplot(aes(x = value, y = s2_est)) +
+    geom_abline(slope = 1, intercept = 0) + 
+    geom_point(aes(color = !!sym(input$fill_isocov)), alpha = 0.6) +
+    scale_color_viridis_c() +
+    facet_wrap(vars(what), scale = 'free') +
+    labs(x = 'Theoretical (or approx) variance', y = 'Sample estimate of variance')
+})
+```
+
+From the above results, it seems that also the marginal variance of the local influence for the ratio of quadratic forms is proportional (with a factor of 1000) to the marginal variance of the local influence of the quadratic form at the numerator of the ratio. This is a promising result in a way that a potential unique sensitivity-score can be used for both quadratic forms and ratios.
+
+Two limitations about the score:
+
+-   For the case of Moran's I with resistance distance ball, the score is not able to identify some of the variances. This is due to the fact that such Moran's I corresponds to the classical one, but with a different adjacency matrix (i.e. graph)
+-   The approximation of the covariance with the exponential of (minus) the distance is correct only when $\kappa = 1$ (and $\sigma = 1$). Therefore, with other $\kappa$ and $\sigma$, the ordering of the score would be the same of the true variance, but however we fail at identifying a scale of the differences.
+
+Next steps:
+
+-   Can we obtain a sensitivity-score only based on the adjacency matrix/Laplacian? Instead of depending on the specific quadratic form
+-   How to generalise on process/data both on vertexes and edges?
+-   Does a potential model-free sensitivity-score for quadratic forms explain also the model-based sensitivity?
+
+# Final remark (last meeting)
+
+The idea looks promising for a work publishable in JCGS. We need to work on some more details and experiments.
+Some comments:
+
+-   $r_{ij} = -2\tilde{L}^+_{ij} + \tilde{L}^+_{ii} + \tilde{L}^+_{jj}$ looks like what is done in multidimensional scaling to map a dissimilarity (here $\tilde{L}^+$) to a distance ($R$)
+-   For the above, check MDS. A reference: Multivariate Analysis, Mardia, Kent, Bibby in Ch.14
+-   Try to compute correctly the variance for the local influence of the ratio of quadratic form. Experiments show that it is proportional to the variance of the local influence of the quadratic form at the numerator. For this one, check the book about the Moran's I
+
+
+
+
+
+
+

@@ -19,9 +19,12 @@ rm(list = ls())
 # dat$SampleDate = mdy(dat$SampleDate)
 # dat$SampleDate[which.max(apply(dat[,-1],1,function(x){mean(!is.na(x))}))]
 # date_use = seq(as.Date('2013-11-15'), as.Date('2013-11-24'), by = "1 day")
-nt = 10
+nt = 3 #10
 dist_mat_s = as.matrix(read.csv("dist_mat_sim.csv",header = FALSE)) 
 dist_mat_euc_s = as.matrix(read.csv("dist_mat_euc_sim.csv",header = FALSE)) 
+
+dist_mat_s <- dist_mat_s[1:5,1:5]
+dist_mat_euc_s <- dist_mat_euc_s[1:5,1:5]
 
 ns = nrow(dist_mat_s)
 
@@ -124,8 +127,8 @@ fn_optim_dag_euc = function(par,y){
   dmvnorm(y,rep(0,n),cov_mat,log = TRUE)
 }
 
-n_sim = 1e3
-cs = c(20,50,100,200)
+n_sim = 10 # 1e3
+cs = 20 # c(20,50,100,200)
 
 sim_out = mclapply(1:length(cs),function(j){
   
@@ -153,7 +156,7 @@ sim_out = mclapply(1:length(cs),function(j){
                 c(dag_euc$value,exp(dag_euc$par))
                 )
     return(res)
-  },mc.cores = 120)
+  },mc.cores = 2) #120)
   
   return(sim_res)
 },mc.cores = 1)

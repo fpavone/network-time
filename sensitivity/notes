@@ -1,0 +1,66 @@
+## MetricGraph package
+- when computing geodesic distances (graph$compute_geodist()), it is the pairwise distance
+  between vertexes and data points. The first n entries are the vertexes,
+  then the data points (in the order they have been added)
+- when computing resistance distance, it only use observations
+
+
+- can we make a network with all edges of length 1? it seems yes, by modifying the filed graph$edge_length
+This can be useful to consider the effect of the degree of the nodes on the sensitivity
+(lengths are all 1). Moreover, a graph with all edges of length 1 should be automatically an Euclidena graph.
+Therefore, isoCov should be always valid (at least with the resistance metric)
+
+- Q: when I add observations with PtE, the edge numbering follows the one of E used to
+ initialize the graph, or the one of graph$E (reordered) ? (most likely the second one)
+ 
+- PtE mantains the same ordering (i.e the one of the data given is the same of graph$get_PtE)
+- PtE does NEED to be SORTED
+
+- tau: precision. Smaller -> higher variance
+- kappa: length scale. Smaller -> larger length scale
+- alpha: fixed to 1 (nu = 1/2)
+
+- data: https://networkrepository.com/
+
+TODO
+- two types of sensitivity analysis:
+  1) change the value of the process in a vertex 
+  2) change the topology of the network
+- in general, how many data points to use? should we place data only on the network nodes?
+
+- simulate different networks (e.g, different structures: core-periphery, sbm, ..)
+ and put all edges length = 1. Study sensitivity in the different cases.
+ Should we average over something? Maybe over different data realizations?
+ We can simulate data from the true DGP and then change the value? 
+ (for IsoCov and MW, the two DGP should similar)
+ 
+ 
+-------------------------------------------
+
+TODO 02/10
+- model-based sensitivity: compare interpretable estimates, that is
+  1) length-scale (kappa for both models)
+  2) smoothness (alpha or nu for MW). Maybe better to estimate alpha
+  3) variance (tau for isoCov, need to compute it properly for WM)
+   !!!!: WM is non-stationary model, so the marginal variance is not constant
+- signal-based sensitivity: compute other indexes than S2. For example Moran's I 
+                            adapted for networks.
+                            Something based on ratios of quadratic forms?
+- consider some specific type of network construction: degree distribution, SBM, etc.. -> TODO
+- visualization: plot node-specific local influence (e.g. median) on the network -> TODO
+                 reorder boxplot image by, e.g., descending median -> TODO
+- literature: explore more about recent work on spatial model on network (anderes etcc)
+              explore more about graph laplacian and other graph quantities
+              
+
+- try Moran's I with radius ball idea!
+
+
+
+
+
+
+
+
+
+
